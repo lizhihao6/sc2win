@@ -3,6 +3,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 from sc2gym import ACTIONS
 
+ENT_COEF = 1e-3
+VF_COEF = 0.25
 
 class A2C(nn.Module):
 
@@ -112,51 +114,77 @@ class A2C(nn.Module):
 
         self.eval()
         action = []
-        action_ids, V, args_dict = self.forward(features)
-        prob = F.softmax(action_ids, dim=1).data
-        aviliable_actions_mask = torch.ByteTensor(aviliable_actions_mask)
-        prob = torch.masked_select(prob, aviliable_actions_mask)
-        m = self.distribution(prob)
-        acition_id = m.sample()
-        action.append(acition_id)
-        args_name_list = ACTIONS._ARGS[acition_id]
-        for arg_name in args_dict.keys():
-            if arg_name in args_name_list:
-                if arg_name in ["screen", "screen2", "minimap"]:
-                    x_prob = F.softmax(args_dict[arg_name][0], dim=1)
-                    y_prob = F.softmax(args_dict[arg_name][1], dim=1)
-                    x_m = self.distribution(x_prob)
-                    y_m = self.distribution(y_prob)
-                    action.append([x_m.sample(), y_m.sample()])
-                else:
-                    prob = F.softmax(args_dict[arg_name], dim=1)
-                    m = self.distribution(prob)
-                    action.append(m.sample())
-
+        action_dict = {}
+        action_for_policy = []
         policy = []
+        action_ids, V, args_dict = self.forward(features)
+
+        prob = F.softmax(action_ids, dim=1).data
+        asm = aviliable_actions_mask
+        index_list = []
+        for index in range(len(asm)):
+            if int(asm[index]) == 1:
+                index_list.append(index)
+        asm = torch.ByteTensor(asm)
+        prob = torch.masked_select(prob, asm)
+        m = self.distribution(prob)
+        action_id = index_list[m.sample()] + 1
         policy.append(action_ids)
-        for arg_name in args_dict.keys():
+        action_for_policy.append(torch.Tensor([action_id]))
+
+        for arg_name in args_dict:
             if arg_name in ["screen", "screen2", "minimap"]:
+                x_prob = F.softmax(args_dict[arg_name][0], dim=1)
+                y_prob = F.softmax(args_dict[arg_name][1], dim=1)
+                x_m = self.distribution(x_prob)
+                y_m = self.distribution(y_prob)
+                x = x_m.sample()
+                y = y_m.sample()
+                action_dict[arg_name] = [int(x), int(y)]
+                action_for_policy.append(x)
+                action_for_policy.append(y)
                 policy.append(args_dict[arg_name][0])
                 policy.append(args_dict[arg_name][1])
             else:
+                prob = F.softmax(args_dict[arg_name], dim=1)
+                m = self.distribution(prob)
+                args = m.sample()
+                action_dict[arg_name] = [int(args)]
+                action_for_policy.append(args)
                 policy.append(args_dict[arg_name])
 
-        return action, V, policy
+        action.append(action_id)
+        args_name_list = ACTIONS._ARGS[action_id]
+        for arg_name in args_name_list:
+            action.append(action_dict[arg_name])
 
-    def loss_funcion(self, R, V, policy):
+        return action, V, policy, action_for_policy
+
+    def loss_funcion(self, R, V, policy, action_for_policy):
 
         A = R - V
-        critic_loss = V.pow(2)
+        A = torch.Tensor([A])
+        critic_loss = VF_COEF*A.pow(2)
 
-        probs = F.softmax(policy, dim=1)
-        m = self.distribution(probs)
-        exp_v = m.log_prob(a) * A.detach()
-        actor_loss = -exp_v
+        exp_v_sum = 0.0
+        for index in range(len(policy)):
+            probs = F.softmax(policy[index], dim=1)
+            m = self.distribution(probs)
+            action = action_for_policy[index]
+            exp_v_sum += m.log_prob(action) * A.detach()
 
-        entropy_loss = nn.CrossEntropyLoss(policy)
+        actor_loss = -exp_v_sum
 
-        total_loss = (critic_loss + action_loss + entropy_loss).mean()
+        policy_tensor = torch.cat([p[0] for p in policy], 0)
+        policy_tensor = policy_tensor.view(1, policy_tensor.size()[0])
+        prob = F.softmax(policy_tensor, dim=1)
+        prob_log = F.log_softmax(policy_tensor, dim=1)
+        entropy_loss = -ENT_COEF * \
+            torch.sum([-p*p_log for p, p_log in zip(prob, prob_log)][0])
+        # entropy_loss = nn.CrossEntropyLoss(torch.cat(policy_list,0)).float
+        # print(entropy_loss)
+
+        total_loss = (critic_loss + actor_loss + float(entropy_loss)).mean()
         return total_loss
 
 

@@ -91,7 +91,27 @@ class Env:
         #     if name in name_list:
         #         _state[name] = state[name]
         # return _state
-        return state
+        name_list = [
+            # feature layer 的 state
+            "player_id", "player_relative", "unit_type", "selected", "unit_hit_points", "unit_density", "unit_density_aa", 
+
+            # minimap feature layer 的 state
+            "mini_player_id", "mini_player_relative", "mini_selected",
+            # 其余state
+            "multi_select",
+            "available_actions",
+            "available_actions_args_max",
+            "player",
+            "game_loop",
+            "single_select",
+            "control_groups"
+        ]
+        _state = {}
+        for name in state.keys():
+            if name in name_list:
+                _state[name] = state[name]
+        return _state
+        # return state
 
 
     def action_filter(self, actions):
@@ -103,8 +123,14 @@ class Env:
         #     if act in used_actions:
         #         _actions.append(used_actions.index(act))
         # return _actions
-        return actions
-
+        # return actions
+        # if you want to use a part of state, edit the used_actions
+        used_actions = [i for i in range(1,524)]
+        _actions = []
+        for act in actions:
+            if act in used_actions:
+                _actions.append(used_actions.index(act))
+        return _actions
 
 def test():
     a = np.zeros(8)
