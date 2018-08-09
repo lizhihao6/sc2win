@@ -1,28 +1,42 @@
 import sc2gym
 import numpy as np
+from sc2gym import ACTIONS
 
 
 class Env:
 
+
     def __init__(self, **kwargs):
+
         self.env = sc2gym.SC2GameEnv(**kwargs)
         self.screen_size = self.env.screen_size
         self.minimap_size = self.env.minimap_size
         self.used_actions = self.action_filter([i for i in range(524)])
+        self.action_length = len(self.used_actions)
+        self.args_length_dict = ACTIONS._ARGS_MAX
+        self.args_length_dict["screen"] = self.screen_size
+        self.args_length_dict["screen2"] = self.screen_size
+        self.args_length_dict["minimap"] = self.minimap_size
+
 
     def reset(self):
+        
         state, _ = self.env.reset()
         return self.state2numpy(state), self.action2numpy(state["available_actions"])
 
+
     def step(self, action):
+        
         state, reward, done, _ = self.env.step(action)
         return self.state2numpy(state), reward, done, self.action2numpy(state["available_actions"])
 
+
     def action2numpy(self, available_actions):
-        print(available_actions)
+
         actions_array = np.zeros(len(self.used_actions))
         actions_array[self.action_filter(available_actions)] = 1
         return actions_array
+
 
     def state2numpy(self, state):
 
@@ -50,7 +64,9 @@ class Env:
 
         return [screen_array, minimap_array, others_array]
 
+
     def state_filter(self, state):
+
         # # if you want to use a part of state, edit the name_list
         # name_list = [
         #     # feature layer 的 state
@@ -77,7 +93,9 @@ class Env:
         # return _state
         return state
 
+
     def action_filter(self, actions):
+
         # if you want to use a part of state, edit the used_actions
         # used_actions = [i for i in range(524)]
         # _actions = []
@@ -96,8 +114,9 @@ def test():
 
 if __name__ == "__main__":
     env = Env(map_name="CollectMineralsAndGas")
-    state_list, available_actions = env.reset()
-    print(available_actions)
-    print(state_list[0].shape)
-    print(state_list[1].shape)
-    print(state_list[2])
+    print(env.minimap_size)
+    # state_list, available_actions = env.reset()
+    # print(available_actions)
+    # print(state_list[0].shape)
+    # print(state_list[1].shape)
+    # print(state_list[2])
