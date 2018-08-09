@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from sc2gym import ACTIONS
 
-ENT_COEF = 1e-3
+ENT_COEF = 1e-6
 VF_COEF = 0.25
 
 class A2C(nn.Module):
@@ -162,6 +162,7 @@ class A2C(nn.Module):
 
     def loss_funcion(self, R, V, policy, action_for_policy):
 
+        self.train()
         A = R - V
         A = torch.Tensor([A])
         critic_loss = VF_COEF*A.pow(2)

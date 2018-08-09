@@ -51,6 +51,7 @@ class A3C:
                         action_for_policy = timestamp["action_for_policy"][_t]
                         loss = self.a2c.loss_funcion(
                             R, float(V), policy, action_for_policy)
+                        opt.zero_grad()
                         loss.backward(retain_graph=True)
                         opt.step()
             
