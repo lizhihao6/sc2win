@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from sc2gym import ACTIONS
 
-ENT_COEF = 1e-6
+ENT_COEF = 1e-3
 VF_COEF = 0.25
 
 class A2C(nn.Module):
@@ -119,16 +119,16 @@ class A2C(nn.Module):
         policy = []
         action_ids, V, args_dict = self.forward(features)
 
-        prob = F.softmax(action_ids, dim=1).data
         asm = aviliable_actions_mask
         index_list = []
         for index in range(len(asm)):
             if int(asm[index]) == 1:
                 index_list.append(index)
         asm = torch.ByteTensor(asm)
-        prob = torch.masked_select(prob, asm)
+        action_ids_msk = torch.masked_select(action_ids, asm)
+        prob = F.softmax(action_ids_msk.view(1,action_ids_msk.size()[0]), dim=1).data
         m = self.distribution(prob)
-        action_id = index_list[m.sample()] + 1
+        action_id = index_list[m.sample()]
         policy.append(action_ids)
         action_for_policy.append(torch.Tensor([action_id]))
 

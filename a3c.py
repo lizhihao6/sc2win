@@ -3,10 +3,10 @@ from a2c import A2C
 from env import Env
 import torch
 
-TOTAL_ROUNDS = 4000
+TOTAL_ROUNDS = 400
 T_EVERY_ROUND = 200
 DT = 10
-GAMMA = 0.9
+GAMMA = 0.99
 
 
 class A3C:
@@ -20,7 +20,7 @@ class A3C:
 
     def run(self):
 
-        opt = torch.optim.Adam(self.a2c.parameters(), lr=1e-7, betas=(0.9, 0.9), eps=1e-8,weight_decay=0)
+        opt = torch.optim.Adam(self.a2c.parameters(), lr=1e-6, betas=(0.9, 0.9), eps=1e-8,weight_decay=0)
 
         rounds = 0
         while(rounds < TOTAL_ROUNDS):
@@ -58,5 +58,5 @@ class A3C:
             print(loss)
 
 if __name__ == "__main__":
-    a3c = A3C(map_name="DefeatRoaches")
+    a3c = A3C(map_name="MoveToBeacon")
     a3c.run()

@@ -125,7 +125,7 @@ class Env:
         # return _actions
         # return actions
         # if you want to use a part of state, edit the used_actions
-        used_actions = [i for i in range(1,524)]
+        used_actions = [i for i in range(524)]
         _actions = []
         for act in actions:
             if act in used_actions:
