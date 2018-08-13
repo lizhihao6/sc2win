@@ -66,7 +66,7 @@ class A3C:
                             self.loss.backward(retain_graph=True)
                             opt.step()
                         except:
-                            print("Failed update weights with loss = ", loss)
+                            print("Failed update weights with loss = ", self.loss)
 
                     timestamp = {"reward": [], "value": [], "action": []}
 
