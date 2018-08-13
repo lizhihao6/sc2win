@@ -1,7 +1,7 @@
 import sc2gym
 import numpy as np
 from sc2gym import ACTIONS
-
+import random
 
 class Env:
 
@@ -67,6 +67,11 @@ class Env:
 
             elif name in nospace_feature_name_list:
                 nospace_feature += [i for i in np.array(state[name]).flatten()]
+
+        # 随机删除一个
+        # index = random.random() * len(state["available_actions"])
+        # remove_action = state["available_actions"][int(index)]
+        # state["available_actions"].tolist().remove(remove_action)
 
         for i in state["available_actions"]:
             self.action_id_mask[i] = 1

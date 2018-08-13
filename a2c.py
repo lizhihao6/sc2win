@@ -120,7 +120,7 @@ class A2C(nn.Module):
 
         return action
 
-    def loss_function(self, R: float, V: torch.Tensor, policy: list, action: dict) -> torch.Tensor:
+    def loss_function(self, R: float, V: torch.Tensor, space_feature_dict, nospace_featuce, action: dict) -> torch.Tensor:
 
         self.train()
 
@@ -128,6 +128,7 @@ class A2C(nn.Module):
         critic_loss = VF_COEF*A.pow(2)
 
         actor_loss = torch.Tensor([[0]]).cuda()
+        policy, _ =self.forward(space_feature_dict, nospace_featuce)
 
         for args, action_name in zip(policy, action.keys()):
 
@@ -140,4 +141,4 @@ class A2C(nn.Module):
         for args, action_name in zip(policy, action.keys()):
             entropy_loss += entropy_loss_fn(args, action[action_name].long())
 
-        return (critic_loss + actor_loss/20 + ENT_COEF*entropy_loss).mean()
+        return (critic_loss + actor_loss + ENT_COEF*entropy_loss).mean()
