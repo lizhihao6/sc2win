@@ -37,7 +37,7 @@ class A3C(threading.Thread):
 
         self._init()
 
-        self.id = int(threading.current_thread().getName().split("-")[-1])
+        self.id = threading.current_thread().getName().split("-")[-1]
         params_name = "model/params" + self.id + ".pkl"
         if os.path.exists(params_name):
             self.a2c.load_state_dict(torch.load(params_name))
@@ -99,7 +99,7 @@ class A3C(threading.Thread):
                     timestamp = {"reward": [], "value": [], "action": [], "space_feature_dict":[], "nospace_feature":[]}
 
                     if done:
-                        logger.info("id = %d, loss = %d", self.id, self.loss)
+                        logger.info("id = %s, loss = %d", self.id, self.loss)
                         break
 
 
