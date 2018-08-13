@@ -5,8 +5,8 @@ import torch
 import os
 
 TOTAL_ROUNDS = 2000
-T_EVERY_ROUND = 400
-DT = 20
+T_EVERY_ROUND = 200
+DT = 16
 GAMMA = 0.99
 
 
