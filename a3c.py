@@ -15,7 +15,6 @@ TOTAL_ROUNDS = 20000
 DT = 16
 GAMMA = 0.99
 PROCESS_NUM = 16
-global index
 
 
 class A3C(threading.Thread):
@@ -38,9 +37,7 @@ class A3C(threading.Thread):
 
         self._init()
 
-        global index
-        self.id = index
-        params_name = "model/params" + str(index) + ".pkl"
+        params_name = "model/params" + threading.current_thread() + ".pkl"
         if os.path.exists(params_name):
             self.a2c.load_state_dict(torch.load(params_name))
 
@@ -109,9 +106,7 @@ if __name__ == "__main__":
 
     mp.set_start_method('spawn')
     a3c_list = [A3C(map_name="DefeatRoaches") for i in range(PROCESS_NUM)]
-    for a3c, i in zip(a3c_list, range(PROCESS_NUM)):
-        global index
-        index = i
+    for a3c in a3c_list:
         a3c.start()
     for a3c in a3c_list:
         a3c.join()
