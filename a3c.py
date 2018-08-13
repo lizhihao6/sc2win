@@ -10,7 +10,7 @@ import os
 TOTAL_ROUNDS = 20000
 DT = 16
 GAMMA = 0.99
-PROCESS_NUM = 2
+PROCESS_NUM = 16
 global index
 
 class A3C(threading.Thread):
