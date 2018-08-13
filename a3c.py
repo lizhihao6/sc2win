@@ -71,7 +71,7 @@ class A3C:
                     timestamp = {"reward": [], "value": [], "action": []}
 
                     if done:
-                        print(self.loss))
+                        print(self.loss)
                         break
 
 if __name__ == "__main__":
