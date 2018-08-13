@@ -14,7 +14,7 @@ logger.setLevel(logging.INFO)
 TOTAL_ROUNDS = 20000
 DT = 16
 GAMMA = 0.99
-PROCESS_NUM = 40
+PROCESS_NUM = 16
 global index
 
 
@@ -24,11 +24,11 @@ class A3C(threading.Thread):
 
         threading.Thread.__init__(self)
 
-        self._kwargs = **kwargs
+        self._kwargs = kwargs
 
     def _init(self):
             
-        self.env = Env(self._kwargs)
+        self.env = Env(**self._kwargs)
 
         space_feature_dict, nospace_feature, action_dict = self.env.init()
         self.a2c = A2C(space_feature_dict, nospace_feature, action_dict)
