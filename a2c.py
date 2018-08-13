@@ -4,7 +4,7 @@ import torch.nn.functional as F
 from sc2gym import ACTIONS
 
 ENT_COEF = 1e-3
-VF_COEF = 0.25
+VF_COEF = 1
 
 
 class A2C(nn.Module):
@@ -140,4 +140,4 @@ class A2C(nn.Module):
         for args, action_name in zip(policy, action.keys()):
             entropy_loss += entropy_loss_fn(args, action[action_name].long())
 
-        return (critic_loss + actor_loss + ENT_COEF*entropy_loss).mean()
+        return (critic_loss + actor_loss/20 + ENT_COEF*entropy_loss).mean()
