@@ -5,7 +5,6 @@ import torch
 import os
 
 TOTAL_ROUNDS = 2000
-T_EVERY_ROUND = 200
 DT = 16
 GAMMA = 0.99
 
@@ -20,7 +19,7 @@ class A3C:
         self.a2c =A2C(space_feature_dict, nospace_feature, action_dict)
         self.a2c.cuda()
         if os.path.exists("params.pkl"):
-                self.a2c.load_state_dict("params.pkl")
+                self.a2c.load_state_dict(torch.load("params.pkl"))
 
     def run(self):
 
@@ -39,7 +38,7 @@ class A3C:
             torch.save(self.a2c.state_dict(), "params.pkl")
             loss = 0.0
 
-            while(t < T_EVERY_ROUND):
+            while(True):
         
                 t += 1
                 policy, value = self.a2c.forward(space_feature_dict, nospace_feature)
@@ -72,6 +71,9 @@ class A3C:
                         opt.step()
                     except:
                         print("Failed update weights with loss = ", loss)
+
+                    if done:
+                        break
             
             print(loss)
 
