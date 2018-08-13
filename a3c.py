@@ -4,7 +4,7 @@ from env import Env
 import torch
 import os
 
-TOTAL_ROUNDS = 2000
+TOTAL_ROUNDS = 20000
 DT = 16
 GAMMA = 0.99
 
@@ -36,7 +36,6 @@ class A3C:
             space_feature_dict, nospace_feature = self.env.reset()
             timestamp = {"reward": [], "value": [], "action": []}
             torch.save(self.a2c.state_dict(), "params.pkl")
-            loss = 0.0
 
             while(True):
         
@@ -53,7 +52,6 @@ class A3C:
 
                     t_start = t
                     R = 0 if done else float(timestamp["value"][-1])
-                    loss = 0.0
                 
                     for i in range(len(timestamp["value"])-1):
                         
@@ -61,21 +59,20 @@ class A3C:
                         R = timestamp["reward"][_t] + GAMMA*R
                         V = timestamp["value"][_t]
                         action = timestamp["action"][_t]
-                        loss += self.a2c.loss_function(R, V, policy, action)
+                        self.loss = self.a2c.loss_function(R, V, policy, action)
+
+                        try:
+                            opt.zero_grad()
+                            self.loss.backward(retain_graph=True)
+                            opt.step()
+                        except:
+                            print("Failed update weights with loss = ", loss)
 
                     timestamp = {"reward": [], "value": [], "action": []}
 
-                    try:
-                        opt.zero_grad()
-                        loss.backward(retain_graph=True)
-                        opt.step()
-                    except:
-                        print("Failed update weights with loss = ", loss)
-
                     if done:
+                        print(self.loss))
                         break
-            
-            print(loss)
 
 if __name__ == "__main__":
     a3c = A3C(map_name="DefeatRoaches")
