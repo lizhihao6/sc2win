@@ -5,9 +5,10 @@ import torch.nn.functional as F
 entropy_loss = torch.nn.CrossEntropyLoss()
 a = torch.LongTensor([0,1])
 a.cuda()
-print()
+a[0] = 0
+print(a)
 # loss = entropy_loss(torch.Tensor([[1,2,3,5],[1,2,4,2]]),a)
-print(loss)
+
 # a = torch.Tensor([[1]])
 # args = torch.Tensor([[3, 2, 4]])
 

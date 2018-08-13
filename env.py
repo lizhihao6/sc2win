@@ -52,10 +52,9 @@ class Env:
 
     def feature_wrap(self, state):
 
-        space_feature_name_list = ["player_id", "player_relative", "unit_type", "selected",
-                                   "unit_hit_points", "unit_hit_points_ratio", "unit_density", "unit_density_aa"]
+        space_feature_name_list = ["unit_type", "selected","unit_hit_points", "unit_density"]
         nospace_feature_name_list = [
-            "multi_select", "player", "game_loop", "score_cumulative", "single_select", "control_groups"]
+            "multi_select", "player", "game_loop", "single_select", "control_groups"]
 
         space_feature_dict = {}
         nospace_feature = []
@@ -71,6 +70,10 @@ class Env:
 
         for i in state["available_actions"]:
             self.action_id_mask[i] = 1
+
+        self.action_id_mask[0] = 0
+        if sum(sum(i) for i in state["control_groups"]) == 0:
+            self.action_id_mask[4] = 0
 
         return space_feature_dict, nospace_feature
 

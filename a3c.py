@@ -20,7 +20,7 @@ class A3C:
 
     def run(self):
 
-        opt = torch.optim.Adam(self.a2c.parameters(), lr=1e-6, betas=(0.9, 0.9), eps=1e-8,weight_decay=0)
+        opt = torch.optim.Adam(self.a2c.parameters(), lr=1e-5, betas=(0.9, 0.9), eps=1e-8,weight_decay=0)
 
         rounds = 0
         
@@ -43,13 +43,13 @@ class A3C:
                 timestamp["reward"].append(reward)
                 timestamp["value"].append(value)
                 timestamp["action"].append(action)
-                
+
                 if (t-t_start) == DT or done:
 
                     t_start = t
                     R = 0 if done else float(timestamp["value"][-1])
                     loss = 0.0
-
+                
                     for i in range(len(timestamp["value"])-1):
                         
                         _t = -(i+2)
@@ -58,10 +58,15 @@ class A3C:
                         action = timestamp["action"][_t]
                         loss += self.a2c.loss_function(R, V, policy, action)
 
-                    opt.zero_grad()
-                    loss.backward(retain_graph=True)
-                    opt.step()
+                    timestamp = {"reward": [], "value": [], "action": []}
+
+                    try:
+                        opt.zero_grad()
+                        loss.backward(retain_graph=True)
+                        opt.step()
+                    except:
+                        print("Failed update weights with loss = ", loss)
 
 if __name__ == "__main__":
-    a3c = A3C(map_name="MoveToBeacon")
+    a3c = A3C(map_name="DefeatRoaches")
     a3c.run()

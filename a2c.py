@@ -20,7 +20,6 @@ class A2C(nn.Module):
             self.cnn(name + "_v")
 
         self.liner("nospace_feature", len(nospace_featuce), 256)
-        self.liner("nospace_feature_v", len(nospace_featuce), 256)
 
         input_dim = (len(self.space_name) + 1) * 256
         self.action_dict = action_dict
@@ -54,7 +53,7 @@ class A2C(nn.Module):
         x = F.relu(conv1(x))
         x = F.relu(conv2(x))
         x = adp_pool(x)
-        x = F.relu(fc1(x.view(1,-1)))
+        x = F.relu(fc1(x.view(1, -1)))
         x = fc2(x)
 
         return x
@@ -78,25 +77,19 @@ class A2C(nn.Module):
         self.train()
 
         a_list = []
-        v_list = []
 
         for name in self.space_name:
             a = torch.Tensor([[space_feature_dict[name]]]).cuda()
-            v = torch.Tensor([[space_feature_dict[name]]]).cuda()
             a_list.append(self.cnn_forward(a, name))
-            v_list.append(self.cnn_forward(v, name + "_v"))
 
         a = torch.Tensor([nospace_featuce]).cuda()
-        v = torch.Tensor([nospace_featuce]).cuda()
         a_list.append(self.liner_forward(a, "nospace_feature"))
-        v_list.append(self.liner_forward(v, "nospace_feature_v"))
 
         a_tensor = torch.cat(a_list, -1)
-        v_tensor = torch.cat(v_list, -1)
 
         policy = [self.liner_forward(a_tensor, name + "_output")
                   for name in self.action_dict.keys()]
-        value = self.liner_forward(v_tensor.view(1,-1), "value_output")
+        value = self.liner_forward(a_tensor.view(1, -1), "value_output")
 
         return policy, value
 
@@ -115,6 +108,7 @@ class A2C(nn.Module):
 
             if name == "action_id":
                 args = torch.masked_select(args, mask_tensor)
+
             probs = F.softmax(args, dim=0)
             m = torch.distributions.Categorical(probs)
             if name == "action_id":
@@ -144,6 +138,6 @@ class A2C(nn.Module):
         entropy_loss = 0.0
         entropy_loss_fn = nn.CrossEntropyLoss()
         for args, action_name in zip(policy, action.keys()):
-            entropy_loss = entropy_loss_fn(args, action[action_name].long())
+            entropy_loss += entropy_loss_fn(args, action[action_name].long())
 
-        return (critic_loss + actor_loss + entropy_loss).mean()
+        return (critic_loss + actor_loss + ENT_COEF*entropy_loss).mean()
