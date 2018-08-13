@@ -14,7 +14,7 @@ logger.setLevel(logging.INFO)
 TOTAL_ROUNDS = 20000
 DT = 16
 GAMMA = 0.99
-PROCESS_NUM = 32
+PROCESS_NUM = 16
 global index
 
 
