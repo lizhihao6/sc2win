@@ -14,48 +14,53 @@ class A3C:
     def __init__(self, **kwargs):
 
         self.env = Env(**kwargs)
-        state, _ = self.env.reset()
-        self.a2c = A2C(len(state[0]), len(state[1]), len(
-            state[2]), self.env.action_length, self.env.args_length_dict)
+        space_feature_dict, nospace_feature, action_dict = self.env.init()
+        self.a2c =A2C(space_feature_dict, nospace_feature, action_dict)
+        self.a2c.cuda()
 
     def run(self):
 
         opt = torch.optim.Adam(self.a2c.parameters(), lr=1e-6, betas=(0.9, 0.9), eps=1e-8,weight_decay=0)
 
         rounds = 0
+        
         while(rounds < TOTAL_ROUNDS):
+        
             t_start = 0
-            loss = 0
+            loss = None
             t = 0
             rounds += 1
-            state, aviliable_action_mask = self.env.reset()
-            timestamp = {"reward": [], "V": [], "action_for_policy": []}
+            space_feature_dict, nospace_feature = self.env.reset()
+            timestamp = {"reward": [], "value": [], "action": []}
+
             while(t < T_EVERY_ROUND):
+        
                 t += 1
-                action, V, policy, action_for_policy = self.a2c.step(
-                    state, aviliable_action_mask)
-                state, reward, done, aviliable_action_mask = self.env.step(
-                    action)
-                if done:
-                    break
+                policy, value = self.a2c.forward(space_feature_dict, nospace_feature)
+                action = self.a2c.choose_action(policy, self.env.action_id_mask) # maybe change read only
+                space_feature_dict, nospace_feature, reward, done = self.env.step(action)
+
                 timestamp["reward"].append(reward)
-                timestamp["V"].append(V)
-                timestamp["action_for_policy"].append(action_for_policy)
-                if (t-t_start) == DT:
+                timestamp["value"].append(value)
+                timestamp["action"].append(action)
+                
+                if (t-t_start) == DT or done:
+
                     t_start = t
-                    R = float(timestamp["V"][-1])
-                    for i in range(DT-1):
+                    R = 0 if done else float(timestamp["value"][-1])
+                    loss = 0.0
+
+                    for i in range(len(timestamp["value"])-1):
+                        
                         _t = -(i+2)
-                        R = float(timestamp["reward"][_t]) + GAMMA*R
-                        V = timestamp["V"][_t]
-                        action_for_policy = timestamp["action_for_policy"][_t]
-                        loss = self.a2c.loss_funcion(
-                            R, float(V), policy, action_for_policy)
-                        opt.zero_grad()
-                        loss.backward(retain_graph=True)
-                        opt.step()
-            
-            print(loss)
+                        R = timestamp["reward"][_t] + GAMMA*R
+                        V = timestamp["value"][_t]
+                        action = timestamp["action"][_t]
+                        loss += self.a2c.loss_function(R, V, policy, action)
+
+                    opt.zero_grad()
+                    loss.backward(retain_graph=True)
+                    opt.step()
 
 if __name__ == "__main__":
     a3c = A3C(map_name="MoveToBeacon")
