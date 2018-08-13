@@ -37,7 +37,7 @@ class A3C(threading.Thread):
 
         self._init()
 
-        params_name = "model/params" + threading.current_thread() + ".pkl"
+        params_name = "model/params" + threading.current_thread().getName() + ".pkl"
         if os.path.exists(params_name):
             self.a2c.load_state_dict(torch.load(params_name))
 
