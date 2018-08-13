@@ -24,7 +24,7 @@ class A3C:
 
     def run(self):
 
-        opt = torch.optim.Adam(self.a2c.parameters(), lr=1e-6, betas=(0.9, 0.9), eps=1e-8,weight_decay=0)
+        opt = torch.optim.Adam(self.a2c.parameters(), lr=1e-5, betas=(0.9, 0.9), eps=1e-8,weight_decay=0)
 
         rounds = 0
         
