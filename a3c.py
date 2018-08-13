@@ -1,29 +1,38 @@
 from sc2gym import ACTIONS
 from a2c import A2C
 from env import Env
+from shared_adam import SharedAdam
+import multiprocessing as mp
+import threading
 import torch
 import os
 
 TOTAL_ROUNDS = 20000
 DT = 16
 GAMMA = 0.99
+PROCESS_NUM = 2
+global index
 
-
-class A3C:
+class A3C(threading.Thread):
 
     def __init__(self, **kwargs):
 
+        threading.Thread.__init__(self)
+        
         self.env = Env(**kwargs)
+        
         space_feature_dict, nospace_feature, action_dict = self.env.init()
-	
         self.a2c =A2C(space_feature_dict, nospace_feature, action_dict)
         self.a2c.cuda()
-        if os.path.exists("params.pkl"):
-                self.a2c.load_state_dict(torch.load("params.pkl"))
 
     def run(self):
 
-        opt = torch.optim.Adam(self.a2c.parameters(), lr=1e-5, betas=(0.9, 0.9), eps=1e-8,weight_decay=0)
+        global index
+        params_name = "model/params" + str(index) + ".pkl"
+        if os.path.exists(params_name):
+                self.a2c.load_state_dict(torch.load(params_name))
+
+        opt = SharedAdam(self.a2c.parameters())
 
         rounds = 0
         
@@ -35,7 +44,7 @@ class A3C:
             rounds += 1
             space_feature_dict, nospace_feature = self.env.reset()
             timestamp = {"reward": [], "value": [], "action": []}
-            torch.save(self.a2c.state_dict(), "params.pkl")
+            torch.save(self.a2c.state_dict(), params_name)
 
             while(True):
         
@@ -75,5 +84,13 @@ class A3C:
                         break
 
 if __name__ == "__main__":
-    a3c = A3C(map_name="DefeatRoaches")
-    a3c.run()
+
+    mp.set_start_method('spawn')
+    a3c_list = [A3C(map_name="DefeatRoaches") for i in range(PROCESS_NUM)]
+    for a3c, i in zip(a3c_list, range(PROCESS_NUM)):
+        global index
+        index = i
+        a3c.start()
+    for a3c in a3c_list:
+        a3c.join()
+
