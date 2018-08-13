@@ -2,10 +2,11 @@ from sc2gym import ACTIONS
 from a2c import A2C
 from env import Env
 import torch
+import os
 
-TOTAL_ROUNDS = 400
-T_EVERY_ROUND = 200
-DT = 10
+TOTAL_ROUNDS = 2000
+T_EVERY_ROUND = 400
+DT = 20
 GAMMA = 0.99
 
 
@@ -15,12 +16,15 @@ class A3C:
 
         self.env = Env(**kwargs)
         space_feature_dict, nospace_feature, action_dict = self.env.init()
+	
         self.a2c =A2C(space_feature_dict, nospace_feature, action_dict)
         self.a2c.cuda()
+        if os.path.exists("params.pkl"):
+                self.a2c.load_state_dict("params.pkl")
 
     def run(self):
 
-        opt = torch.optim.Adam(self.a2c.parameters(), lr=1e-5, betas=(0.9, 0.9), eps=1e-8,weight_decay=0)
+        opt = torch.optim.Adam(self.a2c.parameters(), lr=1e-6, betas=(0.9, 0.9), eps=1e-8,weight_decay=0)
 
         rounds = 0
         
@@ -32,6 +36,8 @@ class A3C:
             rounds += 1
             space_feature_dict, nospace_feature = self.env.reset()
             timestamp = {"reward": [], "value": [], "action": []}
+            torch.save(self.a2c.state_dict(), "params.pkl")
+            loss = 0.0
 
             while(t < T_EVERY_ROUND):
         
@@ -66,6 +72,8 @@ class A3C:
                         opt.step()
                     except:
                         print("Failed update weights with loss = ", loss)
+            
+            print(loss)
 
 if __name__ == "__main__":
     a3c = A3C(map_name="DefeatRoaches")
