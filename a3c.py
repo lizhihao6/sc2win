@@ -1,7 +1,7 @@
 from sc2gym import ACTIONS
 from a2c import A2C
 from env import Env
-from shared_adam import SharedAdam
+from shared_RMSprop import SharedRMSprop
 import multiprocessing as mp
 import threading
 import torch
@@ -12,9 +12,9 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 TOTAL_ROUNDS = 20000
-DT = 16
+DT = 6
 GAMMA = 0.99
-PROCESS_NUM = 16
+PROCESS_NUM = 1
 
 
 class A3C(threading.Thread):
@@ -32,6 +32,7 @@ class A3C(threading.Thread):
         space_feature_dict, nospace_feature, action_dict = self.env.init()
         self.a2c = A2C(space_feature_dict, nospace_feature, action_dict)
         self.a2c.cuda()
+        self.a2c.share_memory()
 
     def run(self):
 
@@ -42,7 +43,8 @@ class A3C(threading.Thread):
         if os.path.exists(params_name):
             self.a2c.load_state_dict(torch.load(params_name))
 
-        opt = SharedAdam(self.a2c.parameters())
+        opt = SharedRMSprop(self.a2c.parameters())
+        opt.share_memory()
 
         rounds = 0
 
