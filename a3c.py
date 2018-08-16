@@ -27,6 +27,7 @@ class A3C(mp.Process):
         self.env = Env(map_name="DefeatRoaches")
         s, ns, action_dict = self.env.init()
         self.lnet = A2C(s, ns, action_dict).cuda()
+        self.lnet.load_state_dict(self.gnet.state_dict())
 
         while(rounds < TOTAL_ROUNDS):
 
