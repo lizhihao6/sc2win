@@ -4,7 +4,7 @@ import torch.nn.functional as F
 from sc2gym import ACTIONS
 
 ENT_COEF = 1e-3
-VF_COEF = 1
+VF_COEF = 0.25
 
 
 class A2C(nn.Module):
@@ -13,7 +13,7 @@ class A2C(nn.Module):
 
         super(A2C, self).__init__()
 
-        self.space_name = space_feature_dict.keys()
+        self.space_name = [str(name) for name in space_feature_dict.keys()]
 
         for name in self.space_name:
             self.cnn(name)
@@ -53,7 +53,7 @@ class A2C(nn.Module):
         x = F.relu(conv1(x))
         x = F.relu(conv2(x))
         x = adp_pool(x)
-        x = F.relu(fc1(x.view(1, -1)))
+        x = F.relu(fc1(x.view(x.size(0), -1)))
         x = fc2(x)
 
         return x
@@ -72,27 +72,36 @@ class A2C(nn.Module):
 
         return fc2(x)
 
-    def forward(self, space_feature_dict: dict, nospace_featuce: list):
+    """
+    To reduce the backward time, forward can input several state, and output several policys and values
 
-        self.train()
+    s_list = [dict1{"space_feactename": [], ...}, dict2, ...]
+    policys = [action_id_policy:tensor[[time0],[time1],...], args_1_policy:tensor[[],[],...], ...]    
+    values = tensor:[[time0],[time1],...]
+    """
+    def forward(self, s_list: list, ns_list: list):
 
-        a_list = []
+        all_list = []
 
         for name in self.space_name:
-            a = torch.Tensor([[space_feature_dict[name]]]).cuda()
-            a_list.append(self.cnn_forward(a, name))
+            s = [[s_dict[name]] for s_dict in s_list]
+            s = torch.Tensor(s).cuda()
+            all_list.append(self.cnn_forward(s, name))
 
-        a = torch.Tensor([nospace_featuce]).cuda()
-        a_list.append(self.liner_forward(a, "nospace_feature"))
+        s = torch.Tensor(ns_list).cuda()
+        all_list.append(self.liner_forward(s, "nospace_feature"))
+        all_tensor = torch.cat(all_list, -1)
 
-        a_tensor = torch.cat(a_list, -1)
-
-        policy = [self.liner_forward(a_tensor, name + "_output")
+        policys = [self.liner_forward(all_tensor, name + "_output")
                   for name in self.action_dict.keys()]
-        value = self.liner_forward(a_tensor.view(1, -1), "value_output")
 
-        return policy, value
+        values = self.liner_forward(all_tensor, "value_output")
 
+        return policys, values
+
+    """
+    Because the action_id_mask is single, so choose_action can only input a policy, not policys.
+    """
     def choose_action(self, policy: torch.Tensor, action_id_mask: list) -> dict:
 
         self.eval()
@@ -113,32 +122,41 @@ class A2C(nn.Module):
             m = torch.distributions.Categorical(probs)
             if name == "action_id":
                 action_id = index_list[int(m.sample())]
-                action_id = torch.Tensor([action_id])
-                action[name] = action_id.cuda()
+                action_id = torch.Tensor([action_id]).cuda()
+                action[name] = action_id    
             else:
                 action[name] = m.sample()
 
         return action
 
-    def loss_function(self, R: float, V: torch.Tensor, space_feature_dict, nospace_featuce, action: dict) -> torch.Tensor:
+    def loss_function(self, buffer_s:list, buffer_ns:list, buffer_a:list, buffer_v_target:list) -> torch.Tensor:
 
         self.train()
 
-        A = R - V
+        policys, values = self.forward(buffer_s, buffer_ns)
+        b_f_t = torch.Tensor(buffer_v_target).cuda()
+        A = b_f_t - values[0] # output is [[value1, value2, value3]]
         critic_loss = VF_COEF*A.pow(2)
 
         actor_loss = torch.Tensor([[0]]).cuda()
-        policy, _ =self.forward(space_feature_dict, nospace_featuce)
 
-        for args, action_name in zip(policy, action.keys()):
+        action_dict = {}
+        for name in self.action_dict.keys():
+            action_dict[name] = [a[name] for a in buffer_a] 
+        a_l = len(buffer_a)
 
-            probs = F.softmax(args, dim=1)
-            m = torch.distributions.Categorical(probs)
-            actor_loss -= m.log_prob(action[action_name]) * A.detach()
+        for args, name in zip(policys, self.action_dict.keys()):
+            for arg,i in zip(args, range(a_l)):
+                probs = F.softmax(arg, dim=0)
+                m = torch.distributions.Categorical(probs)
+                actor_loss -= m.log_prob(action_dict[name][i]) * A.detach()[i]
+        actor_loss = actor_loss/len(policys[0])
 
         entropy_loss = 0.0
         entropy_loss_fn = nn.CrossEntropyLoss()
-        for args, action_name in zip(policy, action.keys()):
-            entropy_loss += entropy_loss_fn(args, action[action_name].long())
-
-        return (critic_loss + actor_loss + ENT_COEF*entropy_loss).mean()
+        for args, name in zip(policys, self.action_dict.keys()):
+            for arg, i in zip(args, range(a_l)):
+                entropy_loss += entropy_loss_fn(torch.unsqueeze(arg, 0), action_dict[name][i].long())
+        entropy_loss = ENT_COEF*entropy_loss/len(policys[0])
+        
+        return (critic_loss + actor_loss + entropy_loss).mean()

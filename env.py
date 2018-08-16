@@ -75,8 +75,9 @@ class Env:
 
         for i in state["available_actions"]:
             self.action_id_mask[i] = 1
-
-        self.action_id_mask[0] = 0
+        # 删除no op
+        # self.action_id_mask[0] = 0
+        # 如果没选中队列，删除select groups
         if sum(sum(i) for i in state["control_groups"]) == 0:
             self.action_id_mask[4] = 0
 

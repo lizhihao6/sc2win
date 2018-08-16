@@ -1,115 +1,99 @@
-from sc2gym import ACTIONS
 from a2c import A2C
 from env import Env
-from shared_RMSprop import SharedRMSprop
-import multiprocessing as mp
-import threading
-import torch
-import os
-import logging
+from sharedRMSprop import SharedRMSprop
+from utils import push_and_pull, recode
+import torch.multiprocessing as _mp
+import torch,os, cloudpickle
 
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
+mp = _mp.get_context('spawn')
 
 TOTAL_ROUNDS = 20000
 DT = 6
 GAMMA = 0.99
-PROCESS_NUM = 1
+PROCESS_NUM = 12
 
+class A3C(mp.Process):
 
-class A3C(threading.Thread):
+    def __init__(self, gnet, opt, global_ep, process_id):
 
-    def __init__(self, **kwargs):
-
-        threading.Thread.__init__(self)
-
-        self._kwargs = kwargs
-
-    def _init(self):
-            
-        self.env = Env(**self._kwargs)
-
-        space_feature_dict, nospace_feature, action_dict = self.env.init()
-        self.a2c = A2C(space_feature_dict, nospace_feature, action_dict)
-        self.a2c.cuda()
-        self.a2c.share_memory()
+        super(A3C, self).__init__()
+        self.gnet = gnet
+        self.opt, self.g_ep = opt, global_ep
+        self.id = process_id
 
     def run(self):
 
-        self._init()
-
-        self.id = threading.current_thread().getName().split("-")[-1]
-        params_name = "model/params" + self.id + ".pkl"
-        if os.path.exists(params_name):
-            self.a2c.load_state_dict(torch.load(params_name))
-
-        opt = SharedRMSprop(self.a2c.parameters())
-        opt.share_memory()
-
         rounds = 0
+        self.env = Env(map_name="DefeatRoaches")
+        s, ns, action_dict = self.env.init()
+        self.lnet = A2C(s, ns, action_dict).cuda()
 
         while(rounds < TOTAL_ROUNDS):
 
-            t_start = 0
-            loss = None
-            t = 0
+            t = t_start = 0
             rounds += 1
-            space_feature_dict, nospace_feature = self.env.reset()
-            timestamp = {"reward": [], "value": [], "action": [], "space_feature_dict":[], "nospace_feature":[]}
-            torch.save(self.a2c.state_dict(), params_name)
+            s, ns = self.env.reset()
+            buffer_s, buffer_ns, buffer_a, buffer_r = [], [], [], []
+            ep_r = 0.
 
             while(True):
 
                 t += 1
-                policy, value = self.a2c.forward(
-                    space_feature_dict, nospace_feature)
-                timestamp["space_feature_dict"].append(space_feature_dict)
-                timestamp["nospace_feature"].append(nospace_feature)
-                
-                action = self.a2c.choose_action(
-                    policy, self.env.action_id_mask)  # maybe change read only
-                timestamp["action"].append(action)
+                policy, value = self.lnet.forward(
+                    [s], [ns])
+                buffer_s.append(s)
+                buffer_ns.append(ns)
 
-                space_feature_dict, nospace_feature, reward, done = self.env.step(
+                action = self.lnet.choose_action(
+                    policy, self.env.action_id_mask)  # maybe change read only
+                buffer_a.append(action)
+
+                s, ns, reward, done = self.env.step(
                     action)
-                timestamp["reward"].append(reward)
-                timestamp["value"].append(value)
+                buffer_r.append(reward)
+                ep_r += reward
 
                 if (t-t_start) == DT or done:
 
                     t_start = t
-                    R = 0 if done else float(timestamp["value"][-1])
 
-                    for i in range(len(timestamp["value"])-1):
-
-                        _t = -(i+2)
-                        R = timestamp["reward"][_t] + GAMMA*R
-                        V = timestamp["value"][_t]
-                        action = timestamp["action"][_t]
-                        space_feature_dict = timestamp["space_feature_dict"][_t]
-                        nospace_feature = timestamp["nospace_feature"][_t]
-                        self.loss = self.a2c.loss_function(
-                            R, V, space_feature_dict, nospace_feature, action)
-
-                        try:
-                            opt.zero_grad()
-                            self.loss.backward(retain_graph=True)
-                            opt.step()
-                        except:
-                            print("Failed update weights with loss = ", self.loss)
-
-                    timestamp = {"reward": [], "value": [], "action": [], "space_feature_dict":[], "nospace_feature":[]}
+                    push_and_pull(self.opt, self.gnet, self.lnet, done, s,
+                                  ns, buffer_s, buffer_ns, buffer_a, buffer_r, GAMMA)
+                    buffer_s, buffer_ns, buffer_a, buffer_r = [], [], [], []
 
                     if done:
-                        logger.info("id = %s, loss = %d", self.id, self.loss)
+                        recode(self.gnet, self.g_ep, ep_r, self.id)
                         break
+
+
+class GNET(mp.Process):
+
+    def __init__(self):
+
+        super(GNET, self).__init__()
+        env = Env(map_name="DefeatRoaches")
+        s, ns, action_dict = env.init()
+        global gnet
+        gnet = A2C(s, ns, action_dict)
+        gnet.cuda()
+        gnet.share_memory()
+        return
 
 
 if __name__ == "__main__":
 
-    mp.set_start_method('spawn')
-    a3c_list = [A3C(map_name="DefeatRoaches") for i in range(PROCESS_NUM)]
-    for a3c in a3c_list:
-        a3c.start()
-    for a3c in a3c_list:
-        a3c.join()
+    os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+
+    global gnet
+    GNET()
+
+    if os.path.exists("model/params.pkl"):
+        gnet.load_state_dict(torch.load("model/params.pkl"))
+    
+    opt = SharedRMSprop(gnet.parameters(), lr=1e-5)
+    opt.share_memory()
+
+    global_ep = mp.Value('i', 0)
+    a3c_list = [A3C(gnet, opt, global_ep, i) for i in range(PROCESS_NUM)]
+    [a3c.start() for a3c in a3c_list]
+    [a3c.join() for a3c in a3c_list]
